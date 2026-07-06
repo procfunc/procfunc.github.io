@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<!--
+  procfunc.io - services the size of functions.
+  A scrolling tour of lesiw.io/proc: supervised processes and typed
+  messaging for Go. Every code example on this page compiles against
+  the current release of lesiw.io/proc.
+  A condensed field guide for coding agents is published at
+  https://procfunc.io/README.md - mental model, contracts, traps.
+-->
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>procfunc — services the size of functions</title>
+    <meta name="description"
+        content="A proc func is a service written as a plain Go function. lesiw.io/proc supervises it: restarts on failure, cancels with its context, places it across a cluster, and moves typed messages between procs.">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/style.css?v=24">
+    <script>
+        // Apply saved theme before first paint.
+        try {
+            const t = localStorage.getItem("theme");
+            if (t) document.documentElement.dataset.theme = t;
+        } catch { }
+    </script>
+</head>
+
+<body>
+    <a class="skip-link" href="#start">Skip to get started</a>
+    <header>
+        <div class="container">
+            <a class="wordmark" href="/">proc<span>func</span></a>
+            <nav aria-label="Site">
+                <a href="https://pkg.go.dev/lesiw.io/proc">Docs</a>
+                <a href="https://github.com/lesiw/proc">Source</a>
+                <button id="theme-toggle" aria-label="Theme: system">◐</button>
+            </nav>
+        </div>
+    </header>
+
+    <nav class="rail" aria-label="Tour sections"></nav>
+
+    <main>
+        <section class="scene hero" id="top" data-title="lesiw.io/proc">
+            <div class="scene-copy">
+                <h1>Services the size of functions.</h1>
+                <p class="lede">
+                    <a href="https://pkg.go.dev/lesiw.io/proc">lesiw.io/proc</a>
+                    extends Go&#8217;s communication primitives to
+                    cluster scale. Procs are context-aware,
+                    supervised goroutines. They communicate through
+                    typed messages on named channels, and channel
+                    messages are stored durably in a broker.
+                </p>
+<pre class="wide" tabindex="0"><code>ctx := context.Background()
+pool, err := pgxpool.New(ctx, os.Getenv("DB_URL"))
+if err != nil {
+	log.Fatal(err)
+}
+ctx, cancel := proc.Context(
+	ctx, &amp;procpgx.Broker{Pool: pool},
+)
+defer cancel()
+
+proc.Go(ctx, serveHTTP, proc.Each("http"))
+proc.Go(ctx, sendEmail, proc.Solo("mail"))
+log.Fatal(proc.Wait(ctx))</code></pre>
+<pre class="narrow" tabindex="0"><code>ctx := context.Background()
+pool, err := pgxpool.New(
+	ctx, os.Getenv("DB_URL"),
+)
+if err != nil {
+	log.Fatal(err)
+}
+ctx, cancel := proc.Context(
+	ctx, &amp;procpgx.Broker{Pool: pool},
+)
+defer cancel()
+
+proc.Go(ctx, serveHTTP, proc.Each("http"))
+proc.Go(ctx, sendEmail, proc.Solo("mail"))
+log.Fatal(proc.Wait(ctx))</code></pre>
+                <div class="cta">
+                    <a class="btn" href="#context">Take the tour</a>
+                    <a class="btn" href="#start">Get started</a>
+                </div>
+            </div>
+            <div class="scene-stage">
+                <svg id="anim-hero" viewBox="0 0 520 320" aria-hidden="true"></svg>
+                <p class="caption">
+                    One binary behind a load balancer. Every peer
+                    serves HTTP. Only one sends mail, fed by a
+                    durable channel. When a peer dies, its work
+                    moves and the messages keep flowing.
+                </p>
+            </div>
+        </section>
+
+        <section class="scene" id="context" data-title="proc.Context">
+            <div class="scene-copy">
+                <p class="kicker">01 · proc.Context</p>
+                <h2>A context is a supervised tree.</h2>
+                <p>
+                    <code>proc.Context</code> opens a supervised
+                    context on the parent ctx. Every
+                    <code>proc.Go</code> schedules a proc — a
+                    <code>func(context.Context) error</code> — onto
+                    it, and <code>proc.Wait</code> blocks until they
+                    finish. The tree lives on the ctx, so
+                    cancellation, deadlines, and values flow the way
+                    Go code already expects.
+                </p>
+<pre tabindex="0"><code>ctx, cancel := proc.Context(ctx)
+defer cancel()
+proc.Go(ctx, pollInventory)
+proc.Go(ctx, pruneSessions)
+proc.Go(ctx, reportMetrics)
+return proc.Wait(ctx)</code></pre>
+            </div>
+            <div class="scene-stage">
+                <svg id="anim-context" viewBox="0 0 520 300" role="img"
+                    aria-label="Animation: a proc.Context node spawns three child procs and sends each a cancellation message when cancel is called; the procs drain and Wait returns."></svg>
+                <p class="caption" data-live="context">
+                    Procs join the tree as they are scheduled. Wait
+                    blocks until every proc finishes; cancel tells
+                    them all to.
+                </p>
+            </div>
+        </section>
+
+        <section class="scene" id="wait" data-title="proc.Wait">
+            <div class="scene-copy">
+                <p class="kicker">02 · proc.Wait</p>
+                <h2>proc.Wait observes the first failure.</h2>
+                <p>
+                    A bare <code>proc.Go</code> is fail-fast. A
+                    failure — a non-nil error, or a panic, recovered
+                    and wrapped — cancels its siblings through the
+                    shared context, and the first failure is what
+                    <code>Wait</code> returns once every proc has
+                    finished. Errors propagate the
+                    <code>errgroup</code> way, and a panic fails the
+                    <code>proc.Context</code>, not the program.
+                </p>
+<pre tabindex="0"><code>proc.Go(ctx, migrate)
+proc.Go(ctx, preload)
+proc.Go(ctx, inspect) // fails
+err := proc.Wait(ctx) // inspect's error</code></pre>
+            </div>
+            <div class="scene-stage">
+                <svg id="anim-wait" viewBox="0 0 520 300" role="img"
+                    aria-label="Animation: three sibling procs run under a proc.Context, alternating two outcomes. In one round all three finish cleanly and Wait returns nil. In the other, one fails, marked with a cross; its error travels as a message to the root, and cancellation messages flow to the siblings."></svg>
+                <p class="caption" data-live="wait">
+                    A failure surfaces once, at the root — when
+                    everything runs clean, Wait returns nil.
+                    Siblings of a failure see ordinary ctx-cancel.
+                </p>
+            </div>
+        </section>
+
+        <section class="scene" id="keep" data-title="proc.Keep">
+            <div class="scene-copy">
+                <p class="kicker">03 · proc.Keep</p>
+                <h2>Keep restarts on error.</h2>
+                <p>
+                    <code>proc.Keep</code> lifts a body into a restart
+                    loop — the long-lived service shape. Any non-nil
+                    return or recovered panic re-invokes the body,
+                    under exponential backoff once failures cluster.
+                    A clean nil return means the proc is done, and the
+                    loop exits: nil is death, on purpose.
+                </p>
+<pre tabindex="0"><code>proc.Go(ctx, watchQueue, proc.Keep())</code></pre>
+            </div>
+            <div class="scene-stage">
+                <svg id="anim-keep" viewBox="0 0 520 300" role="img"
+                    aria-label="Animation: a supervised proc runs, crashes, waits out a backoff ring that grows with repeated failures, and restarts."></svg>
+                <p class="caption" data-live="keep">
+                    The supervisor absorbs the crash and re-invokes
+                    the body. Backoff grows while failures cluster and
+                    decays when they stop.
+                </p>
+                <div class="controls">
+                    <button class="ctl" data-act="crash">Crash it</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="scene" id="solo" data-title="proc.Solo">
+            <div class="scene-copy">
+                <p class="kicker">04 · proc.Solo</p>
+                <h2>Solo runs exactly one, cluster-wide.</h2>
+                <p>
+                    <code>proc.Solo</code> is Keep plus a cluster-wide
+                    claim: at most one peer runs the body at a time.
+                    The claim rides the same broker the messages do —
+                    there is no separate coordination service to
+                    operate. When the holding peer dies, its claim
+                    lapses and another peer picks the body up.
+                </p>
+<pre class="wide" tabindex="0"><code>proc.Go(ctx, deliverMail, proc.Solo("mailer"))</code></pre>
+<pre class="narrow" tabindex="0"><code>proc.Go(
+	ctx, deliverMail, proc.Solo("mailer"),
+)</code></pre>
+                <p>
+                    The body's ctx is claim-scoped. Losing the claim
+                    cancels it, so a deposed holder winds down instead
+                    of racing its successor.
+                </p>
+                <p>
+                    The claim is broker state, not host state. Kill
+                    every peer at once and the first one back picks
+                    the work up again — scaling to zero is not a
+                    special case.
+                </p>
+            </div>
+            <div class="scene-stage">
+                <svg id="anim-solo" viewBox="0 0 520 300" role="group"
+                    aria-label="Interactive animation: three hosts, one holding the mailer claim. Selecting a host kills it; if it held the claim, the claim migrates to a surviving peer, and the killed host reboots as a standby."></svg>
+                <p class="caption" data-live="solo">
+                    Click a host to kill it. The claim migrates while
+                    the ring counts down the reboot; the host rejoins
+                    as a standby.
+                </p>
+            </div>
+        </section>
+
+        <section class="scene" id="many" data-title="proc.Many">
+            <div class="scene-copy">
+                <p class="kicker">05 · proc.Many</p>
+                <h2>Many is Solo, times N.</h2>
+                <p>
+                    <code>proc.Many("resize", 4)</code> claims four
+                    slots across the cluster, each one a Solo under
+                    the names <code>resize-1</code> through
+                    <code>resize-4</code>. The slots share the cohort <code>resize</code> — a cohort is the group a channel load-balances across, and supervisors set it from their name — so a <code>Recv</code> inside the body splits the channel across the whole pool.
+                </p>
+<pre class="wide" tabindex="0"><code>proc.Go(ctx, resizeImages, proc.Many("resize", 4))</code></pre>
+<pre class="narrow" tabindex="0"><code>proc.Go(
+	ctx, resizeImages, proc.Many("resize", 4),
+)</code></pre>
+                <p>
+                    <code>proc.Each</code> is the complement: one copy
+                    on every peer rather than N across the cluster —
+                    the http daemon from the opening example.
+                </p>
+            </div>
+            <div class="scene-stage">
+                <svg id="anim-many" viewBox="0 0 520 300" role="group"
+                    aria-label="Interactive animation: four pool slots spread across three hosts, each slot holding its own claim, with work from an images channel load-balancing across them. Killing a host moves its slots to the survivors; when the host returns, placement rebalances a slot back onto it."></svg>
+                <p class="caption" data-live="many">
+                    Work load-balances across the slots. Kill a host
+                    and its slots re-claim on the survivors; placement
+                    rebalances when it returns.
+                </p>
+            </div>
+        </section>
+
+        <section class="scene" id="send" data-title="proc.Send &amp; proc.Recv">
+            <div class="scene-copy">
+                <p class="kicker">06 · proc.Send / proc.Recv</p>
+                <h2>Messages arrive in order, at least once.</h2>
+                <p>
+                    <code>Send</code> publishes a typed value to a
+                    named channel. <code>Recv</code> yields each
+                    claimed message into an ordinary range loop, and
+                    the loop's control flow settles it — reaching the end of the body acks — commits the message; break, return, or panic naks — rejects it, and the broker redelivers. Delivery is
+                    at-least-once, FIFO within a channel and cohort.
+                </p>
+<pre class="wide" tabindex="0"><code>for ctx, o := range proc.Recv[Order](ctx, "orders") {
+	process(ctx, o)
+}</code></pre>
+<pre class="narrow" tabindex="0"><code>for ctx, o := range proc.Recv[Order](
+	ctx, "orders",
+) {
+	process(ctx, o)
+}</code></pre>
+                <p>
+                    A consumer that dies mid-message loses nothing.
+                    The message returns to the channel and is
+                    delivered again, in order; an idempotent handler
+                    makes the duplicate harmless.
+                </p>
+            </div>
+            <div class="scene-stage">
+                <svg id="anim-send" viewBox="0 0 520 300" role="group"
+                    aria-label="Interactive animation: a producer sends numbered messages onto a durable channel; a supervised consumer settles them in order. Crashing the consumer mid-message returns that message to the channel, and the restarted consumer receives the same message again."></svg>
+                <p class="caption" data-live="send">
+                    Numbered messages move in order. Crash the
+                    consumer mid-message and the same number comes
+                    back around.
+                </p>
+                <div class="controls">
+                    <button class="ctl" data-act="send">Send a message</button>
+                    <button class="ctl" data-act="crash">Crash it</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="scene" id="chan" data-title="proc.Chan">
+            <div class="scene-copy">
+                <p class="kicker">07 · proc.Chan</p>
+                <h2>One proc, many inboxes.</h2>
+                <p>
+                    One goroutine, several typed message streams, handled in one place so the state they touch stays consistent — Go&#8217;s own select, with durable settlement on every arm.
+                    <code>proc.Chan</code> turns a channel into a
+                    plain Go <code>&lt;-chan</code> for
+                    <code>select</code> — and hands you the
+                    settlement: you call <code>Ack</code> or
+                    <code>Nak</code> on every delivery yourself.
+                </p>
+<pre class="wide" tabindex="0"><code>proc.Go(ctx, func(ctx context.Context) error {
+	select {
+	case d := &lt;-proc.Chan[Order](ctx, "orders"):
+		add(ctx, d.Value)
+		d.Ack(ctx)
+	case d := &lt;-proc.Chan[Cancel](ctx, "cancels"):
+		drop(ctx, d.Value)
+		d.Ack(ctx)
+	case &lt;-ctx.Done():
+		return nil
+	}
+	return proc.ErrContinue
+}, proc.Solo("inbox"))</code></pre>
+<pre class="narrow" tabindex="0"><code>proc.Go(ctx, func(
+	ctx context.Context,
+) error {
+	select {
+	case d := &lt;-proc.Chan[Order](
+		ctx, "orders",
+	):
+		add(ctx, d.Value)
+		d.Ack(ctx)
+	case d := &lt;-proc.Chan[Cancel](
+		ctx, "cancels",
+	):
+		drop(ctx, d.Value)
+		d.Ack(ctx)
+	case &lt;-ctx.Done():
+		return nil
+	}
+	return proc.ErrContinue
+}, proc.Solo("inbox"))</code></pre>
+                <p>
+                    Chan is the power-user primitive. Recv acks by
+                    control flow and cannot leak a message; with Chan
+                    a dropped delivery stays in flight until the
+                    scope ends. The channel is never closed — when
+                    the context ends it simply goes quiet, so the
+                    <code>ctx.Done()</code> arm is the select's one
+                    exit. Reach for Chan when a proc needs several
+                    channels; prefer <code>Recv</code> everywhere
+                    else.
+                </p>
+                <p>
+                    Note the shape: one message per invocation, and <code>Keep</code> owns the loop — returning <code>proc.ErrContinue</code> asks for the next invocation without counting as a failure. The restart
+                    reaps every consumer the invocation minted, so
+                    the <code>Chan</code> calls can sit inline in
+                    the select.
+                </p>
+            </div>
+            <div class="scene-stage">
+                <svg id="anim-chan" viewBox="0 0 520 300" role="group"
+                    aria-label="Interactive animation: two channels, orders and cancellations, feed one inbox proc through a select. Each delivery is held until the proc acks it; crashing the proc returns the held message to its own channel for redelivery."></svg>
+                <p class="caption" data-live="chan">
+                    Two channels, one proc. Crash it mid-message and
+                    the held delivery returns to the channel it came
+                    from.
+                </p>
+                <div class="controls">
+                    <button class="ctl" data-act="order">Send order</button>
+                    <button class="ctl" data-act="cancel">Send cancel</button>
+                    <button class="ctl" data-act="crash">Crash it</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="scene" id="query" data-title="proc.Query &amp; proc.Serve">
+            <div class="scene-copy">
+                <p class="kicker">08 · proc.Query / proc.Serve</p>
+                <h2>RPC through messages.</h2>
+                <p>
+                    <code>proc.Serve</code> runs the dispatch loop for
+                    a channel — each arriving query invokes the
+                    handler, and the reply lands in the requester's
+                    inbox. <code>proc.Query</code> sends one query and
+                    blocks for the reply. Both ride the same Send and
+                    Recv underneath, so there is no second RPC system
+                    to operate — and because a query is just a
+                    message in a queue, the server does not need to
+                    be up the instant it is sent. A restart or a
+                    blip delays the reply instead of failing it.
+                </p>
+<pre class="wide" tabindex="0"><code>double := proc.ServerFunc[int, int](
+	func(_ context.Context, n int) (int, error) {
+		return n * 2, nil
+	},
+)
+proc.Go(ctx, func(ctx context.Context) error {
+	return proc.Serve(ctx, "double", double)
+}, proc.Solo("double"))
+
+reply, ok := proc.Query[int, int](ctx, "double", 21)
+if ok {
+	fmt.Println(reply) // Output: 42
+}</code></pre>
+<pre class="narrow" tabindex="0"><code>double := proc.ServerFunc[int, int](
+	func(_ context.Context, n int) (
+		int, error,
+	) {
+		return n * 2, nil
+	},
+)
+proc.Go(ctx, func(
+	ctx context.Context,
+) error {
+	return proc.Serve(ctx, "double", double)
+}, proc.Solo("double"))
+
+reply, ok := proc.Query[int, int](
+	ctx, "double", 21,
+)
+if ok {
+	fmt.Println(reply) // Output: 42
+}</code></pre>
+                <p>
+                    Serve is at-least-once, and so is the reply. A
+                    handler that dies before its ack runs again on
+                    redelivery, and a crash mid-reply can deliver the
+                    answer twice — so handlers stay idempotent, and
+                    requesters treat a duplicate reply as the same
+                    news.
+                </p>
+            </div>
+            <div class="scene-stage">
+                <svg id="anim-query" viewBox="0 0 520 300" role="group"
+                    aria-label="Interactive animation: a requester sends a numbered query through a channel to a server, and each reply returns to the requester's inbox carrying the answer. Crashing the server mid-query redelivers that query after restart; the handler runs again and replies."></svg>
+                <p class="caption" data-live="query">
+                    Crash the server mid-query and the query comes
+                    back around. Everything here is at-least-once —
+                    the work, and the reply too.
+                </p>
+                <div class="controls">
+                    <button class="ctl" data-act="ask">Ask a question</button>
+                    <button class="ctl" data-act="crash">Crash it</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="scene" id="go" data-title="proc.Go">
+            <div class="scene-copy">
+                <p class="kicker">09 · proc.Go</p>
+                <h2>Durable execution through durable messaging.</h2>
+                <p>
+                    Long-running, multi-step work is procs connected
+                    by channels. Each step Recvs its input, does one
+                    unit of work, and Sends the result onward. Every
+                    hop is durable — a step that crashes or deploys
+                    mid-message naks it, restarts, and the pipeline
+                    resumes exactly where it stopped.
+                </p>
+<pre tabindex="0"><code>proc.Go(ctx, step1, proc.Solo("step1"))
+proc.Go(ctx, step2, proc.Solo("step2"))
+proc.Go(ctx, step3, proc.Solo("step3"))</code></pre>
+                <p>
+                    This is durable execution with no separate engine to operate — the broker you already run is the engine. The state of the pipeline is the messages
+                    in flight, and the substrate already persists
+                    those.
+                </p>
+            </div>
+            <div class="scene-stage">
+                <svg id="anim-go" viewBox="0 0 520 300" role="group"
+                    aria-label="Interactive animation: orders flow from step1 through an orders channel to step2, then through an invoices channel to step3. Crashing step2 mid-message returns the message to the orders channel; after restart the same message continues through the rest of the pipeline."></svg>
+                <p class="caption" data-live="go">
+                    Crash step2 mid-message. The message returns to
+                    its channel and continues through the pipeline
+                    after the restart.
+                </p>
+                <div class="controls">
+                    <button class="ctl" data-act="crash">Crash it</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="scene" id="load" data-title="proc.Load">
+            <div class="scene-copy">
+                <p class="kicker">10 · proc.Load</p>
+                <h2>A cluster-wide cron in one body.</h2>
+                <p>
+                    Periodic work in a distributed system asks for
+                    three things at once — exactly one runner, durable
+                    schedule state, and sane behavior through crashes.
+                    Each maps to one primitive. <code>Solo</code>
+                    gates the runner. <code>Load</code> and
+                    <code>Send</code> keep the last-run timestamp in
+                    the substrate. <code>ErrContinue</code> hands the
+                    loop to <code>Keep</code>, so the body is one
+                    tick.
+                </p>
+<pre class="wide" tabindex="0"><code>proc.Go(ctx, func(ctx context.Context) error {
+	last, ok := proc.Load[time.Time](
+		ctx, "cron/backup/last",
+	)
+	if !ok {
+		return nil
+	}
+	next := schedule.Next(last)
+	select {
+	case &lt;-ctx.Done():
+		return nil
+	case &lt;-time.After(time.Until(next)):
+	}
+	defer proc.Send(ctx, "cron/backup/last", next)
+	return cmp.Or(runBackup(ctx), proc.ErrContinue)
+}, proc.Solo("cron/backup"))</code></pre>
+<pre class="narrow" tabindex="0"><code>proc.Go(ctx, func(
+	ctx context.Context,
+) error {
+	last, ok := proc.Load[time.Time](
+		ctx, "cron/backup/last",
+	)
+	if !ok {
+		return nil
+	}
+	next := schedule.Next(last)
+	select {
+	case &lt;-ctx.Done():
+		return nil
+	case &lt;-time.After(time.Until(next)):
+	}
+	defer proc.Send(
+		ctx, "cron/backup/last", next,
+	)
+	return cmp.Or(
+		runBackup(ctx), proc.ErrContinue,
+	)
+}, proc.Solo("cron/backup"))</code></pre>
+                <p>
+                    The deferred <code>Send</code> records the tick
+                    only if the work ran. A crash mid-run leaves the
+                    timestamp untouched, so the next holder re-runs
+                    the missed tick — at least once, never zero.
+                </p>
+            </div>
+            <div class="scene-stage">
+                <svg id="anim-load" viewBox="0 0 520 300" role="group"
+                    aria-label="Interactive animation: a Solo cron proc on one of two hosts counts down to its next tick, runs, and writes the tick number to a durable store. Killing the holder mid-run migrates the claim; the new holder reads the last tick from the store and re-runs the missed tick."></svg>
+                <p class="caption" data-live="load">
+                    Kill the holder mid-run. The claim moves, the new
+                    holder reads the last tick, and the missed tick
+                    runs again.
+                </p>
+                <div class="controls">
+                    <button class="ctl" data-act="kill">Kill mid-run</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="scene" id="save" data-title="proc.Save">
+            <div class="scene-copy">
+                <p class="kicker">11 · proc.Save</p>
+                <h2>A channel is also a value.</h2>
+                <p>
+                    <code>Load</code> reads the latest message on a
+                    channel; <code>Save</code> appends one — but only
+                    if the caller has seen the current head. Together
+                    they make every channel a durable KV cell with
+                    optimistic concurrency. Two writers cannot
+                    silently overwrite each other; the loser learns,
+                    re-reads, and retries.
+                </p>
+<pre class="wide" tabindex="0"><code>func bump(ctx context.Context) error {
+	for {
+		n, ok := proc.Load[int](ctx, "counter")
+		if !ok {
+			return nil
+		}
+		saved, ok := proc.Save(ctx, "counter", n+1)
+		if !ok || saved {
+			return nil
+		}
+	}
+}</code></pre>
+<pre class="narrow" tabindex="0"><code>func bump(ctx context.Context) error {
+	for {
+		n, ok := proc.Load[int](
+			ctx, "counter",
+		)
+		if !ok {
+			return nil
+		}
+		saved, ok := proc.Save(
+			ctx, "counter", n+1,
+		)
+		if !ok || saved {
+			return nil
+		}
+	}
+}</code></pre>
+                <p>
+                    Conflict is a normal-flow signal, not an error.
+                    And <code>Load</code> is at-most-once by design —
+                    it advances past whatever it reads — which is the
+                    other half of the delivery spectrum, there when a
+                    problem calls for it.
+                </p>
+            </div>
+            <div class="scene-stage">
+                <svg id="anim-save" viewBox="0 0 520 300" role="img"
+                    aria-label="Animation: two peers race to compare-and-swap a durable counter channel, drawn with its message log on the left of a divider and the last-written value on the right. Arrowheads above and below the log mark each peer&#8217;s high-water mark — the last message that peer has seen. Both load the same value and their marks move together; the first save commits, appending to the log and updating the value; the second bounces off as a conflict, re-loads, and commits its own increment."></svg>
+                <p class="caption" data-live="save">
+                    Both writers load the same value. One commit
+                    lands — a new message in the log, a new value
+                    right of the divider. The arrowheads are each
+                    peer&#8217;s high-water mark: peer-1 above the
+                    log, peer-2 below. The conflict re-reads and
+                    retries; the counter never skips or repeats.
+                </p>
+                <div class="controls">
+                    <button class="ctl" data-act="race">Race the writers</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="scene" id="broker" data-title="proc.Broker">
+            <div class="scene-copy">
+                <p class="kicker">12 · proc.Broker</p>
+                <h2>Distributed in production. Local on your laptop.</h2>
+                <p>
+                    The broker is the only thing that changes. With
+                    the in-memory broker, every proc — the per-peer
+                    daemons, the singletons, the whole pool — runs in
+                    one process under <code>go run</code>, including
+                    the claims. Swap in a durable broker and the same
+                    binary spreads across the cluster by supervisor
+                    shape — <code>Each</code> on every peer,
+                    <code>Solo</code> on exactly one, <code>Many</code>
+                    filling its slots.
+                </p>
+<pre class="wide" tabindex="0"><code>var broker proc.Deriver = new(mem.Broker)
+if os.Getenv("PGHOST") != "" {
+	pool, err := pgxpool.New(ctx, "")
+	if err != nil {
+		log.Fatal(err)
+	}
+	broker = &amp;procpgx.Broker{Pool: pool}
+}
+ctx, cancel := proc.Context(ctx, broker)</code></pre>
+<pre class="narrow" tabindex="0"><code>var broker proc.Deriver = new(mem.Broker)
+if os.Getenv("PGHOST") != "" {
+	pool, err := pgxpool.New(ctx, "")
+	if err != nil {
+		log.Fatal(err)
+	}
+	broker = &amp;procpgx.Broker{Pool: pool}
+}
+ctx, cancel := proc.Context(
+	ctx, broker,
+)</code></pre>
+                <p>
+                    Brokers sit behind <code>proc.Deriver</code>, a four-method interface.
+                    Postgres is supported today via
+                    <a href="https://pkg.go.dev/lesiw.io/procpgx">lesiw.io/procpgx</a>;
+                    NATS JetStream and Redis are under consideration.
+                </p>
+            </div>
+            <div class="scene-stage">
+                <svg id="anim-broker" viewBox="0 0 520 300" role="group"
+                    aria-label="Interactive animation: five procs run together on a laptop under the in-memory broker. Deploying moves them onto a three-host cluster arranged by supervisor shape: the Each daemon appears on every host, the Solo on one, and the pool slots spread out. Running locally gathers them back onto the laptop."></svg>
+                <p class="caption" data-live="broker">
+                    The same procs, twice. On the laptop everything
+                    shares one process; on the cluster they spread by
+                    supervisor shape.
+                </p>
+                <div class="controls">
+                    <button class="ctl" data-act="toggle">Deploy to the cluster</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="scene" id="tripwire" data-title="proc.Epoch">
+            <div class="scene-copy">
+                <p class="kicker">13 · proc.Epoch</p>
+                <h2>New code proves itself before old code is gone.</h2>
+                <p>
+                    Every peer stamps its build with an epoch — by
+                    default the commit timestamp, read from the
+                    binary's VCS metadata, with an override for
+                    explicit stamps.
+                </p>
+<pre class="wide" tabindex="0"><code>e=$(date -u +%s)
+go build -ldflags="-X lesiw.io/proc.Epoch=$e" .</code></pre>
+<pre class="narrow" tabindex="0"><code>e=$(date -u +%s)
+go build \
+	-ldflags="-X lesiw.io/proc.Epoch=$e" .</code></pre>
+                <p>
+                    During a rolling deploy the cluster sees both
+                    epochs at once. The moment a majority of connected peers reports the new one — membership is connection, so the denominator is whoever is heartbeating — every Solo migrates onto
+                    new-epoch peers — the new build takes over the
+                    singletons while the old build is still running
+                    beside it. A Solo that regresses on the new build
+                    fails fast, under supervision, before the rollout
+                    finishes.
+                </p>
+<pre tabindex="0"><code>ctx, cancel := proc.Context(ctx,
+	proc.WithTripwire(time.Minute),
+	&amp;procpgx.Broker{Pool: pool},
+)</code></pre>
+                <p>
+                    <code>WithTripwire</code> arms the window: for its
+                    duration after startup, a supervised body's error
+                    surfaces through <code>Wait</code> instead of
+                    restarting, so a bad rollout halts loudly rather
+                    than crash-looping quietly.
+                </p>
+            </div>
+            <div class="scene-stage">
+                <svg id="anim-tripwire" viewBox="0 0 520 300" role="group"
+                    aria-label="Interactive animation: three hosts on an old epoch hold two Solo claims. A rolling deploy upgrades hosts one at a time; when the second host reports the new epoch, the majority flips and both claims migrate onto new-epoch hosts before the last old host upgrades."></svg>
+                <p class="caption" data-live="tripwire">
+                    Roll a deploy. At two of three peers the majority
+                    flips, and the singletons move to the new build.
+                </p>
+                <div class="controls">
+                    <button class="ctl" data-act="roll">Roll a deploy</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="scene" id="fence" data-title="Partitions">
+            <div class="scene-copy">
+                <p class="kicker">14 · Partitions</p>
+                <h2>A partitioned peer fences itself.</h2>
+                <p>
+                    Every peer heartbeats through the broker. A peer
+                    that loses its transport stops hearing back, and
+                    past a threshold it assumes the cluster can no
+                    longer see it — so it cancels its own procs,
+                    before the cluster re-grants its claims. A deposed
+                    singleton never races its successor.
+                </p>
+                <p>
+                    Inside the fenced peer, bodies see plain
+                    ctx-cancel — the same signal a deploy or a
+                    shutdown delivers.
+                </p>
+<pre class="wide" tabindex="0"><code>for ctx, job := range proc.Recv[Job](ctx, "jobs") {
+	handle(ctx, job)
+}</code></pre>
+<pre class="narrow" tabindex="0"><code>for ctx, job := range proc.Recv[Job](
+	ctx, "jobs",
+) {
+	handle(ctx, job)
+}</code></pre>
+                <p>
+                    Code that honors its ctx is already
+                    partition-correct; why a context ended is the
+                    supervisor's business, not the body's.
+                </p>
+            </div>
+            <div class="scene-stage">
+                <svg id="anim-fence" viewBox="0 0 520 300" role="group"
+                    aria-label="Interactive animation: three hosts heartbeat through a broker; one holds the worker claim. Disconnecting a host stops its heartbeats; it fences itself, cancelling its procs, and only afterwards does the claim move to a connected peer. The link then heals and the host rejoins."></svg>
+                <p class="caption" data-live="fence">
+                    Disconnect a host. It fences itself first; only
+                    then does the claim move.
+                </p>
+            </div>
+        </section>
+
+        <section class="scene" id="cluster" data-title="One system of record">
+            <div class="scene-copy">
+                <p class="kicker">15 · One system of record</p>
+                <h2>The broker is the state.</h2>
+                <p>
+                    There is no membership protocol beside it — no
+                    seed URLs, no gossip, no bootstrap order. A peer
+                    that can reach the broker is a member; a peer
+                    that cannot, is not. Messages, claims,
+                    membership, and schedule state live in one
+                    durable system.
+                </p>
+                <p>
+                    Transient failure is the substrate's problem. A
+                    flaky connection, a broker restart, a dropped
+                    packet — retried internally, invisible above.
+                    Your code sees two signals: messages, and
+                    cancellation.
+                </p>
+                <p>
+                    Scaling to zero follows from the same fact.
+                    Peers hold no state, so an empty cluster is a
+                    quiet one; the messages wait in the broker, and
+                    the first peer back picks up where everything
+                    left off.
+                </p>
+            </div>
+            <div class="scene-stage">
+                <svg id="anim-cluster" viewBox="0 0 520 300" role="group"
+                    aria-label="Interactive animation: every host runs an api sending numbered orders into a channel inside the broker; a pool spread over two hosts processes each order and emits an invoice, and a solo mailer with a claim mails the invoices. Procs crash with error returns and restart without affecting their host; a link blip shows a red break and a retry countdown without changing membership. Scaling to zero parks the numbered queues in the broker, and the returning hosts drain the same messages."></svg>
+                <p class="caption" data-live="cluster">
+                    Scale to zero mid-queue. The messages wait in
+                    the broker; the first hosts back drain them.
+                </p>
+                <div class="controls">
+                    <button class="ctl" data-act="zero">Scale to zero</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="scene" id="start" data-title="Get started">
+            <div class="scene-copy">
+                <p class="kicker">Get started</p>
+                <h2>Start on the laptop.</h2>
+<pre tabindex="0"><code>go get lesiw.io/proc</code></pre>
+                <p>
+                    Open a <code>proc.Context</code> with the
+                    in-memory broker, schedule bodies with
+                    <code>proc.Go</code>, and <code>proc.Wait</code>.
+                    When it is time for a cluster, import a durable
+                    broker and change that one line.
+                </p>
+                <div class="cta">
+                    <a class="btn" href="https://pkg.go.dev/lesiw.io/proc">API reference</a>
+                    <a class="btn" href="https://github.com/lesiw/proc">Source</a>
+                </div>
+                <p class="aside">
+                    Coming from Erlang or CSP? The
+                    <a href="#csp">appendix</a> works the classic
+                    problems in proc.
+                </p>
+            </div>
+        </section>
+
+        <section class="scene scene-wide" id="csp" data-title="Appendix: CSP problems">
+            <div class="scene-copy">
+                <p class="kicker">Appendix</p>
+                <h2>The classic problems, distributed.</h2>
+                <p>
+                    For readers arriving from CSP, Erlang, or Go's
+                    own concurrency, the fastest way to calibrate is
+                    the classic exercises. Delivery here is
+                    at-least-once and FIFO within a channel and
+                    cohort, so each solution carries its durability
+                    consequence with it.
+                </p>
+
+                <h3>The column reformatter</h3>
+                <p>
+                    Hoare's original exercise reads 80-column cards
+                    and reprints their characters as 125-character
+                    lines — two processes joined by a stream. One
+                    message per character is his framing, not a
+                    throughput recommendation. The unpacking side is
+                    an ordinary Recv loop feeding a channel.
+                </p>
+<pre class="wide" tabindex="0"><code>func unpack(ctx context.Context) error {
+	for ctx, card := range proc.Recv[string](ctx, "cards") {
+		for _, r := range card {
+			proc.Send(ctx, "chars", r)
+		}
+	}
+	return nil
+}</code></pre>
+<pre class="narrow" tabindex="0"><code>func unpack(ctx context.Context) error {
+	for ctx, card := range proc.Recv[string](
+		ctx, "cards",
+	) {
+		for _, r := range card {
+			proc.Send(ctx, "chars", r)
+		}
+	}
+	return nil
+}</code></pre>
+                <p>
+                    The packing side is where durability changes the
+                    idiom. A partial line lives in memory, and an
+                    acked character never redelivers — so the packer
+                    holds every delivery unacked until its line is
+                    complete. <code>Chan</code> exists for this
+                    settlement-decoupled shape. A crash rebuilds the
+                    partial line from redelivery, in order; a
+                    finished line may send twice; downstream stays
+                    idempotent.
+                </p>
+<pre class="wide" tabindex="0"><code>func pack(ctx context.Context) error {
+	var line []rune
+	var pending []proc.Delivery[rune]
+	chars := proc.Chan[rune](ctx, "chars")
+	for {
+		select {
+		case &lt;-ctx.Done():
+			return nil
+		case d := &lt;-chars:
+			line = append(line, d.Value)
+			pending = append(pending, d)
+			if len(line) &lt; 125 {
+				continue
+			}
+			if !proc.Send(ctx, "lines", string(line)) {
+				return nil
+			}
+			for _, p := range pending {
+				p.Ack(ctx)
+			}
+			line, pending = nil, nil
+		}
+	}
+}
+
+proc.Go(ctx, unpack, proc.Solo("unpack"))
+proc.Go(ctx, pack, proc.Solo("pack"))</code></pre>
+<pre class="narrow" tabindex="0"><code>func pack(ctx context.Context) error {
+	var line []rune
+	var pending []proc.Delivery[rune]
+	chars := proc.Chan[rune](ctx, "chars")
+	for {
+		select {
+		case &lt;-ctx.Done():
+			return nil
+		case d := &lt;-chars:
+			line = append(line, d.Value)
+			pending = append(pending, d)
+			if len(line) &lt; 125 {
+				continue
+			}
+			ok := proc.Send(
+				ctx, "lines", string(line),
+			)
+			if !ok {
+				return nil
+			}
+			for _, p := range pending {
+				p.Ack(ctx)
+			}
+			line, pending = nil, nil
+		}
+	}
+}
+
+proc.Go(ctx, unpack, proc.Solo("unpack"))
+proc.Go(ctx, pack, proc.Solo("pack"))</code></pre>
+
+                <h3>Fan-out, fan-in</h3>
+                <p>
+                    Fan-out is a cohort, not a loop that starts
+                    goroutines — <code>Many</code> claims the slots
+                    and <code>Recv</code> load-balances the channel
+                    across them. Fan-in needs no machinery at all;
+                    any number of procs Send to one channel, and a
+                    single collector Recvs one ordered stream.
+                </p>
+<pre class="wide" tabindex="0"><code>proc.Go(ctx, func(ctx context.Context) error {
+	for ctx, j := range proc.Recv[Job](ctx, "jobs") {
+		proc.Send(ctx, "results", work(j))
+	}
+	return nil
+}, proc.Many("workers", 8))
+
+proc.Go(ctx, func(ctx context.Context) error {
+	for ctx, r := range proc.Recv[Result](ctx, "results") {
+		record(ctx, r)
+	}
+	return nil
+}, proc.Solo("collector"))</code></pre>
+<pre class="narrow" tabindex="0"><code>proc.Go(ctx, func(
+	ctx context.Context,
+) error {
+	for ctx, j := range proc.Recv[Job](
+		ctx, "jobs",
+	) {
+		proc.Send(ctx, "results", work(j))
+	}
+	return nil
+}, proc.Many("workers", 8))
+
+proc.Go(ctx, func(
+	ctx context.Context,
+) error {
+	for ctx, r := range proc.Recv[Result](
+		ctx, "results",
+	) {
+		record(ctx, r)
+	}
+	return nil
+}, proc.Solo("collector"))</code></pre>
+
+                <h3>The sieve of Eratosthenes</h3>
+                <p>
+                    The classic dynamic pipeline — every discovered
+                    prime spawns a filter — is also the π-calculus
+                    party trick, because channel names are plain
+                    values created at runtime and handed to the next
+                    proc. Topology is data.
+                </p>
+<pre class="wide" tabindex="0"><code>func sieve(in string) func(context.Context) error {
+	return func(ctx context.Context) error {
+		first, out := 0, ""
+		for ctx, n := range proc.Recv[int](ctx, in) {
+			if first == 0 {
+				first = n
+				proc.Send(ctx, "primes", n)
+				out = "sieve/" + strconv.Itoa(n)
+				proc.Go(ctx, sieve(out))
+				continue
+			}
+			if n%first != 0 {
+				proc.Send(ctx, out, n)
+			}
+		}
+		return nil
+	}
+}</code></pre>
+<pre class="narrow" tabindex="0"><code>func sieve(
+	in string,
+) func(context.Context) error {
+	return func(ctx context.Context) error {
+		first, out := 0, ""
+		for ctx, n := range proc.Recv[int](
+			ctx, in,
+		) {
+			if first == 0 {
+				first = n
+				proc.Send(ctx, "primes", n)
+				out = "sieve/" +
+					strconv.Itoa(n)
+				proc.Go(ctx, sieve(out))
+				continue
+			}
+			if n%first != 0 {
+				proc.Send(ctx, out, n)
+			}
+		}
+		return nil
+	}
+}</code></pre>
+                <p>
+                    This one is a toy — a proc and a channel per
+                    prime, best enjoyed on the in-memory broker. The
+                    part worth keeping is the mobility.
+                </p>
+
+                <h3>A cluster-wide rate limiter</h3>
+                <p>
+                    The token bucket becomes cluster-wide when the
+                    bucket is a channel. One Solo drips tokens; every
+                    worker on every host takes one before acting.
+                    <code>WithMessageTTL</code> expires unclaimed
+                    tokens, so an idle cluster can't bank an
+                    unbounded burst.
+                </p>
+<pre class="wide" tabindex="0"><code>proc.Go(ctx, func(ctx context.Context) error {
+	ctx = proc.WithMessageTTL(time.Second)(ctx)
+	for {
+		select {
+		case &lt;-ctx.Done():
+			return nil
+		case &lt;-time.After(time.Second / 10):
+		}
+		proc.Send(ctx, "tokens", struct{}{})
+	}
+}, proc.Solo("limiter"))</code></pre>
+<pre class="narrow" tabindex="0"><code>proc.Go(ctx, func(
+	ctx context.Context,
+) error {
+	ctx = proc.WithMessageTTL(
+		time.Second,
+	)(ctx)
+	for {
+		select {
+		case &lt;-ctx.Done():
+			return nil
+		case &lt;-time.After(time.Second / 10):
+		}
+		proc.Send(
+			ctx, "tokens", struct{}{},
+		)
+	}
+}, proc.Solo("limiter"))</code></pre>
+                <p>
+                    A consumer inside a <code>Many</code> body takes
+                    one token per action, and the shared cohort makes
+                    the rate a property of the cluster rather than of
+                    any one process.
+                </p>
+<pre class="wide" tabindex="0"><code>for ctx := range proc.Recv[struct{}](ctx, "tokens") {
+	crawl(ctx)
+}</code></pre>
+<pre class="narrow" tabindex="0"><code>tokens := proc.Recv[struct{}](ctx, "tokens")
+for ctx := range tokens {
+	crawl(ctx)
+}</code></pre>
+
+                <p>
+                    The differences from in-process CSP are the
+                    durability trade, deliberately taken. Delivery is
+                    at-least-once rather than exactly-once, so
+                    handlers are written idempotent. Ordering is FIFO
+                    within a channel and cohort, not global. And
+                    messages outlive the processes on both ends,
+                    which is the point — a Send is durable the moment
+                    it returns, whoever is or isn't running.
+                </p>
+                <p>
+                    The rest of the classics are the tour itself —
+                    producer/consumer is
+                    <a href="#send">at-least-once delivery</a>,
+                    the worker pool is <a href="#many">Many</a>,
+                    request/reply is <a href="#query">Query</a>, and
+                    the pipeline is
+                    <a href="#go">durable execution</a> — each
+                    running across machines instead of goroutines.
+                </p>
+            </div>
+        </section>
+
+        <section class="scene scene-wide" id="inspired" data-title="Inspired by">
+            <div class="scene-copy">
+                <p class="kicker">Appendix</p>
+                <h2>Inspired by.</h2>
+                <p>
+                    <strong>Smalltalk (Kay, 1972).</strong> Everything
+                    is an object, and objects interact only by
+                    sending messages. Decades later Kay
+                    <a href="https://lists.squeakfoundation.org/pipermail/squeak-dev/1998-October/017019.html">insisted
+                    the objects were never the point</a> — "the big
+                    idea is messaging" — a thread the
+                    <a href="http://wiki.c2.com/?AlanKayOnMessaging">c2
+                    wiki</a> kept pulling on.
+                </p>
+                <p>
+                    <strong>The actor model (Hewitt, Bishop, and
+                    Steiger, <a href="https://www.ijcai.org/Proceedings/73/Papers/027B.pdf">1973</a>).</strong>
+                    Computation as independent entities that hold
+                    their own state and interact only through
+                    messages to mailboxes.
+                </p>
+                <p>
+                    <strong>Communicating Sequential Processes
+                    (Hoare, <a href="https://www.cs.cmu.edu/~crary/819-f09/Hoare78.pdf">1978</a>).</strong>
+                    Programs as processes that share nothing and
+                    rendezvous over channels. The exercises in the
+                    appendix above are his.
+                </p>
+                <p>
+                    <strong>The Bell Labs line (Pike and others,
+                    1985–1996).</strong> Newsqueak, Alef, and Limbo
+                    made CSP channels a working language feature
+                    three times before Go did it a fourth —
+                    <a href="https://swtch.com/~rsc/thread/">Russ
+                    Cox's history</a> traces the whole line.
+                </p>
+                <p>
+                    <strong>Erlang and OTP (Armstrong and others,
+                    1986–1998).</strong> Supervision trees, restart
+                    strategies, registered processes, and
+                    <a href="http://wiki.c2.com/?LetItCrash">let it
+                    crash</a> — the discovery that reliability is a
+                    property of the supervisor, not the worker.
+                    <code>Keep</code>, <code>Solo</code>, and
+                    fail-fast scopes are OTP shapes with Go spelling;
+                    <a href="https://erlang.org/download/armstrong_thesis_2003.pdf">Armstrong's
+                    thesis</a> is the argument in full.
+                </p>
+                <p>
+                    <strong>The π-calculus (Milner, Parrow, and
+                    Walker, <a href="https://www.pure.ed.ac.uk/ws/files/16426053/A_Calculus_of_Mobile_Processes_I.pdf">1992</a>).</strong>
+                    Channels as first-class values whose names travel
+                    over other channels, so the communication
+                    topology itself can move. The sieve above does
+                    exactly this.
+                </p>
+                <p>
+                    <strong>Go (2009).</strong> Goroutines and
+                    channels carried the Bell Labs line into the
+                    mainstream —
+                    <a href="https://go.dev/blog/codelab-share">"share
+                    memory by communicating"</a> — and
+                    <code>context</code>, <code>errgroup</code>, and
+                    range-over-func iteration gave proc its native
+                    vocabulary. proc extends Go's concurrency words
+                    across machines rather than inventing parallel
+                    ones.
+                </p>
+                <p>
+                    <strong>Akka (Bonér, 2009).</strong> Erlang's
+                    supervision and actors, industrialized on the
+                    JVM. <a href="https://akka.io">Akka</a>'s Cluster
+                    Singleton is <code>Solo</code>'s corporate
+                    sibling, with an ops team attached.
+                </p>
+                <p>
+                    <strong>Orleans (Bykov and others,
+                    <a href="https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/Orleans-MSR-TR-2014-41.pdf">2011</a>).</strong>
+                    Virtual actors — a named actor conceptually
+                    always exists, and the runtime activates it
+                    somewhere in the cluster on first use, exactly
+                    once. <code>Solo</code> makes the same guarantee
+                    with the claim held explicitly on the broker
+                    rather than in a runtime's directory.
+                </p>
+                <p>
+                    <strong>Durable execution (2010s–2020s).</strong>
+                    Workflow engines demonstrated the demand for
+                    progress that survives crashes and deploys. proc
+                    expresses the same property as plain messages on
+                    durable channels, with no separate engine to
+                    operate.
+                </p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>© Chris Lesiw. <a href="https://pkg.go.dev/lesiw.io/proc">lesiw.io/proc</a></p>
+        </div>
+    </footer>
+
+    <script src="/tour.js?v=24"></script>
+</body>
+
+</html>

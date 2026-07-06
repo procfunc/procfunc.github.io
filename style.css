@@ -1,0 +1,618 @@
+/* procfunc.io */
+
+/* ---------- Reset ---------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; }
+img, svg { display: block; max-width: 100%; }
+input, button, textarea, select { font: inherit; }
+
+/* ---------- Theme tokens ---------- */
+
+:root {
+    --bg: #ffffff;
+    --bg-soft: #f6f8fa;
+    --fg: #1f2328;
+    --fg-soft: #59636e;
+    --border: #d1d9e0;
+    --accent: #007d9c;
+    --accent-text: #00687f;
+    --link: #00687f;
+    --ok: #1a7f37;
+    --ok-soft: #dafbe1;
+    --bad: #cf222e;
+    --bad-soft: #ffebe9;
+    --warn: #9a6700;
+    --warn-soft: #fff8c5;
+    --code-bg: #f6f8fa;
+    --btn-fg: #ffffff;
+    color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0f1720;
+        --bg-soft: #161f2a;
+        --fg: #e6edf3;
+        --fg-soft: #9198a1;
+        --border: #2f3742;
+        --accent: #00add8;
+        --accent-text: #4cc2e6;
+        --link: #4cc2e6;
+        --ok: #3fb950;
+        --ok-soft: #12261e;
+        --bad: #f85149;
+        --bad-soft: #2d1517;
+        --warn: #d29922;
+        --warn-soft: #272115;
+        --code-bg: #161f2a;
+        --btn-fg: #0f1720;
+        color-scheme: dark;
+    }
+}
+
+:root[data-theme="light"] {
+    --bg: #ffffff;
+    --bg-soft: #f6f8fa;
+    --fg: #1f2328;
+    --fg-soft: #59636e;
+    --border: #d1d9e0;
+    --accent: #007d9c;
+    --accent-text: #00687f;
+    --link: #00687f;
+    --ok: #1a7f37;
+    --ok-soft: #dafbe1;
+    --bad: #cf222e;
+    --bad-soft: #ffebe9;
+    --warn: #9a6700;
+    --warn-soft: #fff8c5;
+    --code-bg: #f6f8fa;
+    --btn-fg: #ffffff;
+    color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+    --bg: #0f1720;
+    --bg-soft: #161f2a;
+    --fg: #e6edf3;
+    --fg-soft: #9198a1;
+    --border: #2f3742;
+    --accent: #00add8;
+    --accent-text: #4cc2e6;
+    --link: #4cc2e6;
+    --ok: #3fb950;
+    --ok-soft: #12261e;
+    --bad: #f85149;
+    --bad-soft: #2d1517;
+    --warn: #d29922;
+    --warn-soft: #272115;
+    --code-bg: #161f2a;
+    --btn-fg: #0f1720;
+    color-scheme: dark;
+}
+
+/* ---------- Base ---------- */
+
+html { scroll-behavior: smooth; }
+
+body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--link); }
+main a { text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+code, pre {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+        Consolas, monospace;
+    font-size: 0.9em;
+}
+
+pre {
+    tab-size: 4;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+    line-height: 1.55;
+    margin: 1.25rem 0;
+}
+
+pre code { font-size: 0.875rem; }
+
+/* Inline code reads as code, not just a font change. */
+:not(pre) > code {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.05em 0.3em;
+    white-space: nowrap;
+}
+
+/* Code blocks come in wide/narrow pairs; phones get the narrow one. */
+pre.narrow { display: none; }
+
+@media (min-width: 56rem) {
+    .scene-copy pre { margin-left: -1.25rem; margin-right: -1.25rem; }
+}
+
+.skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    background: var(--bg);
+    padding: 0.5rem 1rem;
+    z-index: 100;
+}
+.skip-link:focus { left: 0; }
+
+/* ---------- Syntax tokens (Tour-style, set by tour.js) ---------- */
+
+.k { font-weight: 600; }
+.s { color: #a31515; }
+.c { color: var(--fg-soft); font-style: italic; }
+@media (prefers-color-scheme: dark) { .s { color: #de9a9a; } }
+:root[data-theme="light"] .s { color: #a31515; }
+:root[data-theme="dark"] .s { color: #de9a9a; }
+
+/* ---------- Header ---------- */
+
+header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+}
+
+header .container {
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 0.65rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.wordmark {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-weight: 700;
+    font-size: 1.05rem;
+    text-decoration: none;
+    color: var(--fg);
+}
+.wordmark span { color: var(--accent-text); }
+
+header nav { display: flex; align-items: center; gap: 1.1rem; }
+header nav a {
+    color: var(--fg-soft);
+    text-decoration: none;
+    font-size: 0.92rem;
+}
+header nav a:hover { color: var(--fg); }
+
+#theme-toggle {
+    background: none;
+    border: none;
+    color: var(--fg-soft);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.15rem 0.3rem;
+    border-radius: 6px;
+}
+#theme-toggle:hover { color: var(--fg); background: var(--bg-soft); }
+
+/* ---------- Progress rail ---------- */
+
+.rail {
+    position: fixed;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    z-index: 15;
+}
+
+.rail a {
+    position: relative;
+    width: 12px;
+    height: 12px;
+    display: block;
+}
+/* The dot is its own layer, so hover-scaling it never touches the
+   label. */
+.rail a::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1.5px solid var(--fg-soft);
+    background: transparent;
+    transition: background 0.2s, border-color 0.2s, transform 0.2s;
+}
+.rail a:hover::after { transform: scale(1.35); }
+.rail a::before {
+    content: attr(aria-label);
+    position: absolute;
+    right: 1.1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    white-space: nowrap;
+    font-size: var(--node-label-size, 0.8rem);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--fg-soft);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.1rem 0.5rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+}
+.rail a:hover::before,
+.rail a:focus-visible::before { opacity: 1; }
+.rail a[aria-current="true"]::after {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+@media (max-width: 56rem) { .rail { display: none; } }
+
+/* ---------- Scenes ---------- */
+
+.scene {
+    min-height: 92vh;
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 4rem 1.25rem 3rem;
+    display: grid;
+    grid-template-columns: minmax(0, 28rem) minmax(0, 1fr);
+    gap: 3rem;
+    align-items: center;
+}
+
+.scene-copy { max-width: 34rem; }
+
+.kicker {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-text);
+    margin-bottom: 0.75rem;
+}
+
+h1 {
+    font-size: clamp(2rem, 5vw, 3rem);
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+    margin-bottom: 1.1rem;
+}
+
+h2 {
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    margin-bottom: 0.9rem;
+}
+
+.scene-copy p { margin-bottom: 0.9rem; }
+.lede { font-size: 1.08rem; color: var(--fg); }
+
+.scene-stage svg {
+    width: 100%;
+    height: auto;
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.caption {
+    font-size: 0.88rem;
+    color: var(--fg-soft);
+    margin-top: 0.75rem;
+    padding-left: 0.85rem;
+    border-left: 3px solid var(--border);
+    min-height: 2.6em;
+}
+
+.controls { margin-top: 0.9rem; display: flex; gap: 0.6rem; }
+
+.ctl {
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.4rem 0.9rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+.ctl:hover { border-color: var(--accent); color: var(--accent-text); }
+
+.cta { display: flex; gap: 0.75rem; margin-top: 1.4rem; flex-wrap: wrap; }
+
+.btn {
+    display: inline-block;
+    padding: 0.55rem 1.15rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--fg);
+    font-size: 0.95rem;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent-text); }
+.btn:first-child {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--btn-fg);
+}
+.btn:first-child:hover { color: var(--btn-fg); opacity: 0.92; }
+
+.hero { min-height: calc(100vh - 3.2rem); }
+
+.aside { font-size: 0.9rem; color: var(--fg-soft); margin-top: 1rem; }
+
+/* Wide scenes: prose only, no stage column. */
+.scene-wide { grid-template-columns: minmax(0, 1fr); }
+.scene-wide .scene-copy { max-width: 44rem; }
+
+.table-scroll { overflow-x: auto; margin: 1.25rem 0; }
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.92rem;
+}
+th, td {
+    text-align: left;
+    padding: 0.5rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+}
+th { color: var(--fg-soft); font-weight: 600; }
+
+
+/* ---------- SVG vocabulary ---------- */
+
+svg text {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    fill: var(--fg);
+}
+
+.n-label, .h-label { font-size: 12px; text-anchor: middle; }
+.n-sub, .h-sub, .qdot text, .proc.sm .n-label { font-size: 10px; }
+.n-sub { text-anchor: middle; fill: var(--fg-soft); }
+.h-label { fill: var(--fg-soft); }
+
+.edge {
+    stroke: var(--border);
+    stroke-width: 1.5;
+    fill: none;
+    transition: opacity 0.4s;
+}
+
+.proc circle.body {
+    fill: var(--bg);
+    stroke: var(--fg-soft);
+    stroke-width: 1.5;
+    transition: fill 0.35s, stroke 0.35s;
+}
+
+.proc[data-state="running"] circle.body {
+    fill: var(--ok-soft);
+    stroke: var(--ok);
+}
+.proc[data-state="running"] circle.body { animation: pulse 2.6s ease-in-out infinite; }
+.proc[data-state="crashed"] circle.body {
+    fill: var(--bad-soft);
+    stroke: var(--bad);
+    animation: shake 0.35s;
+}
+.proc[data-state="backoff"] circle.body {
+    fill: var(--warn-soft);
+    stroke: var(--warn);
+}
+.proc[data-state="canceled"] circle.body {
+    fill: var(--warn-soft);
+    stroke: var(--warn);
+}
+.proc[data-state="retired"] { opacity: 0.3; }
+.proc[data-state="retired"] circle.body {
+    fill: var(--bg);
+    stroke: var(--fg-soft);
+}
+.proc[data-state="standby"] circle.body {
+    fill: var(--bg);
+    stroke: var(--fg-soft);
+    stroke-dasharray: 3 3;
+}
+.proc[data-state="hidden"] { opacity: 0; }
+.proc { transition: opacity 0.4s; }
+
+.claim-ring {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+    transition: opacity 0.3s;
+}
+
+.backoff-ring {
+    fill: none;
+    stroke: var(--warn);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+}
+
+.host {
+    fill: var(--bg);
+    stroke: var(--border);
+    stroke-width: 1.5;
+    rx: 10;
+    transition: opacity 0.4s, stroke 0.4s;
+}
+.host-g[data-dead="true"] { opacity: 0.35; }
+.host-g[role="button"] { cursor: pointer; }
+.host-g[role="button"]:hover .host { stroke: var(--accent); }
+.host-g:focus-visible .host { stroke: var(--accent); stroke-width: 2.5; }
+
+.errmark { font-size: 12px; fill: var(--bad); text-anchor: middle; font-weight: 600; }
+
+/* State glyphs: states read by shape as well as color. */
+.glyph {
+    font-size: 14px;
+    font-weight: 700;
+    text-anchor: middle;
+    pointer-events: none;
+}
+.proc[data-state="crashed"] .glyph { fill: var(--bad); }
+.proc[data-state="canceled"] .glyph { fill: var(--warn); }
+.proc[data-state="backoff"] .glyph { fill: var(--warn); }
+.proc[data-state="retired"] .glyph { fill: var(--fg-soft); }
+
+/* Signals: cancellation, errors, and payloads travel as dots. */
+.signal { fill: var(--accent); }
+.signal.err { fill: var(--bad); }
+.signal.cancel { fill: none; stroke: var(--warn); stroke-width: 2; }
+
+/* Numbered message dots. */
+.qdot circle { fill: var(--accent); }
+/* Square dots (second payload type) track the theme: dark squares
+   on light, light squares on dark. */
+.qdot rect { fill: var(--fg); }
+.qdot:has(rect) text { fill: var(--bg); }
+.qdot text {
+    fill: var(--btn-fg);
+    font-weight: 700;
+    text-anchor: middle;
+}
+.qdot.parked, .signal.parked { transition: transform 0.3s; }
+
+/* A claimed message stays in its log position, dimmed, until its
+   settlement resolves. */
+.qdot.claimed, .signal.claimed { opacity: 0.35; }
+
+/* Procs that morph between laptop and cluster positions. */
+.mover { transition: transform 0.9s ease; }
+
+/* Channels and stores. */
+.chan {
+    fill: var(--bg);
+    stroke: var(--border);
+    stroke-width: 1.5;
+}
+
+.h-sub { text-anchor: middle; fill: var(--fg-soft); }
+
+.tick-ring {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+}
+
+/* Outline dots show the payload itself — the inside of the message
+   — as opposed to solid dots, which carry message ids. */
+.qdot.payload circle { fill: var(--bg); stroke: var(--accent); stroke-width: 2; }
+.qdot.payload text { fill: var(--accent-text); }
+
+.signal.ack { fill: var(--bg); stroke: var(--accent); stroke-width: 2; }
+.signal.conflict {
+    fill: var(--bg);
+    stroke: var(--warn);
+    stroke-width: 2;
+    stroke-dasharray: 3 2;
+}
+
+/* Heartbeat links. */
+.hb-link { stroke: var(--border); stroke-width: 1.5; }
+.hb-link[data-cut="true"] {
+    stroke: var(--bad);
+    stroke-dasharray: 4 4;
+    opacity: 0.7;
+}
+
+/* Hosts on the new build. */
+.host-g[data-epoch="new"] .host { stroke: var(--accent); }
+
+/* A proc actively doing its tick. */
+.proc[data-work="true"] circle.body {
+    animation: pulse 0.7s ease-in-out infinite;
+    stroke-width: 3;
+}
+
+.ctl:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+.ctl:disabled:hover { border-color: var(--border); color: var(--fg); }
+
+@keyframes pulse {
+    0%, 100% { stroke-width: 1.5; }
+    50% { stroke-width: 3; }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-3px); }
+    75% { transform: translateX(3px); }
+}
+
+/* ---------- Footer ---------- */
+
+footer {
+    border-top: 1px solid var(--border);
+    padding: 1.5rem 0 2.5rem;
+    color: var(--fg-soft);
+    font-size: 0.9rem;
+}
+footer .container { max-width: 72rem; margin: 0 auto; padding: 0 1.25rem; }
+
+/* ---------- Mobile ---------- */
+
+@media (max-width: 56rem) {
+    .scene {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 1.5rem;
+        min-height: unset;
+        padding: 3rem 1.25rem 2rem;
+    }
+    .hero { min-height: unset; }
+
+    /* SVGs render at ~0.67 scale on phones. Same three-step scale,
+       one size up, with subs given room under their labels. */
+    .n-label, .h-label, .errmark { font-size: 16px; }
+    .n-sub, .h-sub, .qdot text, .proc.sm .n-label { font-size: 13px; }
+    .glyph { font-size: 18px; }
+    .n-sub, .h-sub { transform: translateY(6px); }
+
+    /* Message dots grow so their numbers breathe; the scale rides
+       the child shape, clear of the group's inline translate. */
+    .qdot circle, .qdot rect { transform: scale(1.3); }
+
+    pre.wide { display: none; }
+    pre.narrow { display: block; }
+    pre { tab-size: 2; padding: 1rem 0.85rem; }
+    pre code, .hero pre code { font-size: 0.75rem; }
+
+    /* Comfortable touch targets. */
+    .ctl { padding: 0.55rem 1.1rem; font-size: 0.95rem; }
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

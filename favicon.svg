@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <style>
+    .tile { fill: #f6f8fa; }
+    .edge { stroke: #007d9c; stroke-width: 4; }
+    .node { fill: #007d9c; }
+    @media (prefers-color-scheme: dark) {
+      .tile { fill: #0f172a; }
+      .edge { stroke: #00ADD8; }
+      .node { fill: #00ADD8; }
+    }
+  </style>
+  <rect class="tile" width="64" height="64" rx="14"/>
+  <line class="edge" x1="32" y1="20" x2="18" y2="44"/>
+  <line class="edge" x1="32" y1="20" x2="46" y2="44"/>
+  <circle class="node" cx="32" cy="18" r="7"/>
+  <circle class="node" cx="17" cy="46" r="7"/>
+  <circle class="node" cx="47" cy="46" r="7"/>
+</svg>

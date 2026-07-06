@@ -1,0 +1,28 @@
+# procfunc
+
+> A proc func is a service written as a plain Go function.
+> lesiw.io/proc supervises it -- restarts it on failure, retires it
+> when it returns, cancels it when its context ends, and places it
+> across a cluster -- and moves typed messages between procs with
+> at-least-once, FIFO-per-cohort delivery. The same binary runs
+> whole on a laptop with the in-memory broker or spread across a
+> cluster with a durable one (Postgres today via lesiw.io/procpgx).
+
+## Docs
+
+- [Tour](https://procfunc.io/): scenes for proc.Context supervision
+  trees, fail-fast error propagation, Keep restarts, Solo cluster
+  singletons, Many slot pools, at-least-once messaging, Query/Serve
+  request-reply, durable pipelines, distributed cron, local-to-
+  cluster deployment, epoch-gated rolling deploys, and heartbeat
+  self-fencing.
+- [Field guide](https://procfunc.io/README.md): condensed reference
+  for coding agents -- mental model, supervisors, messaging
+  contracts, Load/Save semantics, the cron shape, and a traps list.
+- [Appendix for Erlang and CSP readers](https://procfunc.io/csp/)
+- [API reference](https://pkg.go.dev/lesiw.io/proc)
+- [Postgres broker](https://pkg.go.dev/lesiw.io/procpgx)
+
+## Mirrors
+
+- [procfunc.github.io](https://procfunc.github.io/)
